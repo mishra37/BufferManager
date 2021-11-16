@@ -179,7 +179,29 @@ void badgerdb::BufMgr::allocPage(File& file, PageId& pageNo, Page*& page) {
 }
 
 void badgerdb::BufMgr::flushFile(File& file) {
-}
+        //Check bufDescTable for pages belong to file and any excpetion
+        for (FrameId id = 0; id < numBufs; id++){
+           if (bufDescTable[id].file == file){
+                //Throw PagePinnedException if page is pinned
+                if (bufDescTable[id].pinCnt != 0){
+                    throw PagePinnedException("Page is pinned", bufDescTable[id].pageNo, id);
+                }
+                //Throw BadBufferException if an invalid page encountered.
+                if (bufDescTable[id].valid == 0){
+                    throw BadBufferException(id, bufDescTable[id].dirty, bufDescTable[id].valid, bufDescTable[id].refbit);
+                }
+                //If the page is dirty, call writePage() to write the page to disk and set the dirty bit to false
+                if (bufDescTable[id].dirty != 0){
+                    bufDescTable[id].file.writePage(bufPool[id]);
+                    bufDescTable[id].dirty = 0;
+                }
+                //Remove the page from the hashtable
+                hashTable.remove(file, bufDescTable[id].pageNo);
+                //Call the clear() method of BufDesc for the page frame.
+                bufDescTable[id].clear();
+            }
+        }
+    }
 
 void badgerdb::BufMgr::disposePage(File& file, const PageId PageNo) {
 	FrameId frame;
